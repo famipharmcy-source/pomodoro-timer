@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ポモドーロタイマー</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background: #1a1a2e;
+    color: #eee;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .app {
+    text-align: center;
+    width: 380px;
+  }
+
+  h1 {
+    font-size: 1.4rem;
+    letter-spacing: 0.15em;
+    color: #a78bfa;
+    margin-bottom: 2rem;
+    text-transform: uppercase;
+  }
+
+  .mode-tabs {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-bottom: 2.5rem;
+  }
+
+  .mode-tab {
+    padding: 0.4rem 1rem;
+    border-radius: 999px;
+    border: 1px solid #444;
+    background: transparent;
+    color: #aaa;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+  }
+
+  .mode-tab.active {
+    background: #a78bfa;
+    border-color: #a78bfa;
+    color: #fff;
+  }
+
+  .timer-ring {
+    position: relative;
+    width: 240px;
+    height: 240px;
+    margin: 0 auto 2rem;
+  }
+
+  .timer-ring svg {
+    transform: rotate(-90deg);
+  }
+
+  .ring-bg {
+    fill: none;
+    stroke: #2d2d4e;
+    stroke-width: 8;
+  }
+
+  .ring-progress {
+    fill: none;
+    stroke: #a78bfa;
+    stroke-width: 8;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1s linear, stroke 0.4s;
+  }
+
+  .ring-progress.break {
+    stroke: #34d399;
+  }
+
+  .timer-display {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+  }
+
+  .time {
+    font-size: 3.5rem;
+    font-weight: 300;
+    letter-spacing: 0.05em;
+    line-height: 1;
+  }
+
+  .phase-label {
+    font-size: 0.8rem;
+    color: #aaa;
+    margin-top: 0.3rem;
+    letter-spacing: 0.1em;
+  }
+
+  .controls {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-bottom: 2rem;
+  }
+
+  .btn {
+    padding: 0.75rem 2rem;
+    border-radius: 999px;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+    transition: transform 0.1s, opacity 0.2s;
+  }
+
+  .btn:active { transform: scale(0.96); }
+
+  .btn-primary {
+    background: #a78bfa;
+    color: #fff;
+    min-width: 120px;
+  }
+
+  .btn-primary.running { background: #f87171; }
+
+  .btn-secondary {
+    background: #2d2d4e;
+    color: #aaa;
+  }
+
+  .stats {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    background: #16213e;
+    border-radius: 1rem;
+    padding: 1rem 2rem;
+  }
+
+  .stat {
+    text-align: center;
+  }
+
+  .stat-num {
+    font-size: 1.8rem;
+    font-weight: 300;
+    color: #a78bfa;
+  }
+
+  .stat-label {
+    font-size: 0.75rem;
+    color: #888;
+    margin-top: 0.2rem;
+  }
+
+  .toast {
+    position: fixed;
+    top: 2rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(-20px);
+    background: #a78bfa;
+    color: #fff;
+    padding: 0.75rem 1.5rem;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    opacity: 0;
+    transition: all 0.4s;
+    pointer-events: none;
+  }
+
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <h1>🍅 ポモドーロ</h1>
+
+  <div class="mode-tabs">
+    <button class="mode-tab active" onclick="setMode('work')">作業 25分</button>
+    <button class="mode-tab" onclick="setMode('short')">短休憩 5分</button>
+    <button class="mode-tab" onclick="setMode('long')">長休憩 15分</button>
+  </div>
+
+  <div class="timer-ring">
+    <svg width="240" height="240" viewBox="0 0 240 240">
+      <circle class="ring-bg" cx="120" cy="120" r="108"/>
+      <circle class="ring-progress" id="ring" cx="120" cy="120" r="108"
+        stroke-dasharray="678.6" stroke-dashoffset="0"/>
+    </svg>
+    <div class="timer-display">
+      <div class="time" id="timeDisplay">25:00</div>
+      <div class="phase-label" id="phaseLabel">作業時間</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn btn-primary" id="startBtn" onclick="toggleTimer()">スタート</button>
+    <button class="btn btn-secondary" onclick="resetTimer()">リセット</button>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-num" id="sessCount">0</div>
+      <div class="stat-label">完了セッション</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num" id="totalMin">0</div>
+      <div class="stat-label">累計作業分</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const MODES = {
+  work:  { label: '作業時間',  secs: 25 * 60, isBreak: false },
+  short: { label: '短い休憩',  secs: 5  * 60, isBreak: true  },
+  long:  { label: '長い休憩',  secs: 15 * 60, isBreak: true  },
+};
+
+let mode = 'work';
+let totalSecs = MODES.work.secs;
+let remaining = totalSecs;
+let running = false;
+let interval = null;
+let sessions = 0;
+let totalWorkSecs = 0;
+
+const CIRCUMFERENCE = 2 * Math.PI * 108;
+
+function setMode(m) {
+  if (running) return;
+  mode = m;
+  totalSecs = MODES[m].secs;
+  remaining = totalSecs;
+  document.querySelectorAll('.mode-tab').forEach((t, i) => {
+    t.classList.toggle('active', ['work','short','long'][i] === m);
+  });
+  updateDisplay();
+}
+
+function toggleTimer() {
+  if (running) {
+    clearInterval(interval);
+    running = false;
+    document.getElementById('startBtn').textContent = 'スタート';
+    document.getElementById('startBtn').classList.remove('running');
+  } else {
+    running = true;
+    document.getElementById('startBtn').textContent = '一時停止';
+    document.getElementById('startBtn').classList.add('running');
+    interval = setInterval(tick, 1000);
+  }
+}
+
+function tick() {
+  if (remaining <= 0) {
+    clearInterval(interval);
+    running = false;
+    document.getElementById('startBtn').textContent = 'スタート';
+    document.getElementById('startBtn').classList.remove('running');
+    onComplete();
+    return;
+  }
+  if (mode === 'work') totalWorkSecs++;
+  remaining--;
+  updateDisplay();
+}
+
+function onComplete() {
+  if (mode === 'work') {
+    sessions++;
+    document.getElementById('sessCount').textContent = sessions;
+    showToast('お疲れ様！休憩しましょう 🎉');
+    tryNotify('ポモドーロ完了！休憩してください。');
+  } else {
+    showToast('休憩終了！次のセッションへ 🍅');
+    tryNotify('休憩終了！作業を再開しましょう。');
+  }
+  document.getElementById('totalMin').textContent = Math.floor(totalWorkSecs / 60);
+  beep();
+}
+
+function resetTimer() {
+  clearInterval(interval);
+  running = false;
+  remaining = totalSecs;
+  document.getElementById('startBtn').textContent = 'スタート';
+  document.getElementById('startBtn').classList.remove('running');
+  updateDisplay();
+}
+
+function updateDisplay() {
+  const m = Math.floor(remaining / 60).toString().padStart(2, '0');
+  const s = (remaining % 60).toString().padStart(2, '0');
+  document.getElementById('timeDisplay').textContent = `${m}:${s}`;
+  document.getElementById('phaseLabel').textContent = MODES[mode].label;
+
+  const frac = remaining / totalSecs;
+  const offset = CIRCUMFERENCE * (1 - frac);
+  const ring = document.getElementById('ring');
+  ring.style.strokeDashoffset = offset;
+  ring.classList.toggle('break', MODES[mode].isBreak);
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function tryNotify(msg) {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification('🍅 ポモドーロタイマー', { body: msg });
+  } else if ('Notification' in window && Notification.permission !== 'denied') {
+    Notification.requestPermission();
+  }
+}
+
+function beep() {
+  try {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.8);
+  } catch(e) {}
+}
+
+updateDisplay();
+</script>
+</body>
+</html>
